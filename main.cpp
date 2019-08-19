@@ -1,4 +1,5 @@
 #undef NDEBUG
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <variant>
@@ -7,9 +8,9 @@
 // Allow the wrapper around call to be inlined, undefine if you want easier to read assembly
 #define ALLOW_INLINE
 // Allow the members to be inlined. Undefine to simulate them being implemented in a separate translation unit.
-#define ALLOW_MEMBER_INLINE
+// #define ALLOW_MEMBER_INLINE
 // Allow the unsafe tests to run. Only tested to fully work on GCC and Clang
-#define UNSAFE_TEST
+// #define UNSAFE_TEST
 // Time the run and report the results for each test
 #define TIME_RESULT
 #ifdef TIME_RESULT
