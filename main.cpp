@@ -587,9 +587,17 @@ ERASURE_BENCHMARK("VirtualFinalReference", IA, AImplFinal{});
 #endif
 #ifdef NONFINAL_VIRTUAL
 ERASURE_BENCHMARK("VirtualNonFinalReference", IA, AImpl{});
+#endif // NONFINAL_VIRTUAL
+#endif // INTERFACE_REFERENCE
+#ifdef STD_VARIANT
+ERASURE_BENCHMARK("ACompliantVariant", VariantAAlts, CONSTRUCT_FROM(VariantAAlts, ACompliant));
+#ifdef FINAL_VIRTUAL
+ERASURE_BENCHMARK("FinalInheritanceVariant", VariantAAlts, CONSTRUCT_FROM(VariantAAlts, AImplFinal));
+#endif
+#ifdef NONFINAL_VIRTUAL
+ERASURE_BENCHMARK("NonFinalInheritanceVariant", VariantAAlts, CONSTRUCT_FROM(VariantAAlts, AImpl));
 #endif
 #endif
-
 BENCHMARK_MAIN();
 #else // GOOGLE_BENCH
 int main(int argc, char* argv[]) {
