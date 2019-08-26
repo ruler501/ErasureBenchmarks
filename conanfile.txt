@@ -1,5 +1,0 @@
-[requires]
-dyno/0.1@lawrencem/stable
-
-[generators]
-cmake
