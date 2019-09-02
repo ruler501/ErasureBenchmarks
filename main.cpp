@@ -434,15 +434,15 @@ DYNO_INTERFACE(ErasedADyno,
 #endif // MPARK_VARIANT
 
 #ifdef STD_VARIANT
-template<typename... Alts>
+template<template<typename...> typename Var, typename... Alts>
 struct VariantA {
-    std::variant<Alts...> storage;
+    Var<Alts...> storage;
 
     [[nodiscard]] constexpr size_t testMember(size_t a, size_t b) noexcept {
-        return std::visit([a,b](auto o){ return o.testMember(a, b); }, storage);
+        return visit([a,b](auto o){ return o.testMember(a, b); }, storage);
     }
     [[nodiscard]] constexpr size_t testMember2(size_t a, size_t b) noexcept {
-        return std::visit([a,b](auto o){ return o.testMember2(a, b); }, storage);
+        return visit([a,b](auto o){ return o.testMember2(a, b); }, storage);
     }
 
     template<typename T>
@@ -545,30 +545,33 @@ using ErasedCapturingLambdaACompliant = ErasedCapturingLambdaA<sizeof(ACompliant
 using ErasedUnsafeACompliant = ErasedUnsafeA<sizeof(ACompliant), alignof(ACompliant)>;
 #endif // UNSAFE_MEMBER_PTR_CAST
 #ifdef UNSAFE_FUNC_PTR_CAST
-using ErasedAsmACompliant = ErasedAsmA<sizeof(ACompliant), alignof(ACompliant)>;
+using ErasedUnsafeFuncPtrACompliant = ErasedAsmA<sizeof(ACompliant), alignof(ACompliant)>;
 #endif // UNSAFE_FUNC_PTR_CAST
 #ifdef STD_VARIANT
-using VariantAAlts = VariantA<ACompliant, AImpl, AImplFinal>;
+using VariantAAlts = VariantA<std::variant, ACompliant, AImpl, AImplFinal>;
 #endif
+#ifdef MPARK_VARIANT
+using MparkVariantAAlts = VariantA<mpark::variant, ACompliant, AImpl, AImplFinal>;
+#endif // MPARK_VARIANT
 
 #ifdef GOOGLE_BENCH
 template<typename T>
-static NO_INLINE(void) BM_RunTest(benchmark::State& state, size_t seed, T& t) {
+static NO_INLINE(void) RunTest(benchmark::State& state, size_t seed, T& t) {
     for (auto _ : state) {
         seed ^= 13 + runTest<T>(seed, t);
     }
 }
 
 #define BENCHMARK_TEMPLATE1_CAPTURE(func, TypeArg, test_case_name, toTest)    \
-    BENCHMARK_PRIVATE_DECLARE(func_Of_##TypeArg) =         \
+    BENCHMARK_PRIVATE_DECLARE(##func_Of_##TypeArg) =         \
         (::benchmark::internal::RegisterBenchmarkInternal( \
             new ::benchmark::internal::FunctionBenchmark(  \
                 #func "_Of_" #TypeArg "/" test_case_name, \
                 [](benchmark::State& st) { decltype(toTest) holder = toTest; func<USE_SELECTOR(TypeArg)>(st, 137, holder); }))) \
                 ->ComputeStatistics("max", [](const std::vector<double>& v) -> double { \
-return *(std::max_element(std::begin(v), std::end(v))); \
-})
-#define ERASURE_BENCHMARK(test_case_name, TypeArg, toTest) BENCHMARK_TEMPLATE1_CAPTURE(BM_RunTest, TypeArg, test_case_name, toTest)
+return *(std::max_element(std::begin(v), std::end(v))); })
+
+#define ERASURE_BENCHMARK(test_case_name, TypeArg, toTest) BENCHMARK_TEMPLATE1_CAPTURE(RunTest, TypeArg, test_case_name, toTest)
 #define CONSTRUCT_FROM(FinalType, InitializerType) USE_SELECTOR(FinalType){USE_SELECTOR(InitializerType){}}
 
 ERASURE_BENCHMARK("DirectCall", ACompliant, ACompliant{});
@@ -598,6 +601,39 @@ ERASURE_BENCHMARK("FinalInheritanceVariant", VariantAAlts, CONSTRUCT_FROM(Varian
 ERASURE_BENCHMARK("NonFinalInheritanceVariant", VariantAAlts, CONSTRUCT_FROM(VariantAAlts, AImpl));
 #endif
 #endif
+#ifdef MPARK_VARIANT
+ERASURE_BENCHMARK("ACompliantMparkVariant", MparkVariantAAlts, CONSTRUCT_FROM(MparkVariantAAlts, ACompliant));
+#ifdef FINAL_VIRTUAL
+ERASURE_BENCHMARK("FinalInheritanceMparkVariant", MparkVariantAAlts, CONSTRUCT_FROM(MparkVariantAAlts, AImplFinal));
+#endif
+#ifdef NONFINAL_VIRTUAL
+ERASURE_BENCHMARK("NonFinalInheritanceMparkVariant", MparkVariantAAlts, CONSTRUCT_FROM(MparkVariantAAlts, AImpl));
+#endif
+#endif
+#ifdef POLYMORPHIC_VALUE
+#ifdef FINAL_VIRTUAL
+ERASURE_BENCHMARK("PolymorphicValueFinalInheritance", polymorphic_valueASized, CONSTRUCT_FROM(polymorphic_valueASized, AImplFinal));
+#endif // FINAL_VIRTUAL
+#ifdef NONFINAL_VIRTUAL
+ERASURE_BENCHMARK("PolymorphicValueNonFinalInheritance", polymorphic_valueASized, CONSTRUCT_FROM(polymorphic_valueASized, AImpl));
+#endif // NONFINAL_VIRTUAL
+#endif // POLYMORPHIC_VALUE
+#ifdef CREATE_INTERFACE_IMPL
+ERASURE_BENCHMARK("CreateInterfaceTrueErasure", ErasedACreateInheritSized, CONSTRUCT_FROM(ErasedACreateInheritSized, ACompliant));
+#endif // CREATE_INTERFACE_IMPL
+#ifdef CAPTURING_LAMBDA
+ERASURE_BENCHMARK("CapturingLambdaTrueErasure", ErasedCapturingLambdaACompliant, CONSTRUCT_FROM(ErasedCapturingLambdaACompliant, ACompliant));
+#endif // CAPTURING_LAMBDA
+#ifdef UNSAFE_MEMBER_PTR_CAST
+ERASURE_BENCHMARK("UnsafeMemberPtrCastTrueErasure", ErasedUnsafeACompliant, CONSTRUCT_FROM(ErasedUnsafeACompliant, ACompliant));
+#endif // UNSAFE_MEMBER_PTR_CAST
+#ifdef UNSAFE_FUNC_PTR_CAST
+ERASURE_BENCHMARK("UnsafeFuncPtrCast", ErasedUnsafeFuncPtrACompliant, CONSTRUCT_FROM(ErasedUnsafeFuncPtrACompliant, ACompliant));
+#endif // UNSAFE_FUNC_PTR_CAST
+#ifdef DYNO
+ERASURE_BENCHMARK("DynoDefault", ErasedADyno, CONSTRUCT_FROM(ErasedADyno, ACompliant));
+#endif // DYNO
+
 BENCHMARK_MAIN();
 #else // GOOGLE_BENCH
 int main(int argc, char* argv[]) {
@@ -611,18 +647,18 @@ int main(int argc, char* argv[]) {
 #ifdef NO_SELECTOR
 #ifdef MEMBER_PTR
 #ifdef NONFINAL_VIRTUAL
-    ErasedASized<1> bEI1{bI1};
+    ErasedASized bEI1{bI1};
 #endif // NONFINAL_VIRTUAL
 #ifdef FINAL_VIRTUAL
-    ErasedASized<2> bEI2{bI2};
+    ErasedASized bEI2{bI2};
 #endif // FINAL_VIRTUAL
-    ErasedASized<3> bE{b};
+    ErasedASized bE{b};
 #endif // MEMBER_PTR
 #ifdef POLYMORPHIC_VALUE
-    polymorphic_valueASized<1> bEI2{bI2};
+    polymorphic_valueASized bEI2{bI2};
 #endif // POLYMORPHIC_VALUE
 #ifdef CREATE_INTERFACE_IMPL
-    ErasedACreateInheritSized<1> bECI{bI2};
+    ErasedACreateInheritSized bECI{bI2};
 #endif
 #ifdef CAPTURING_LAMBDA
     ErasedCapturingLambdaACompliant bEL{b};
@@ -631,7 +667,7 @@ int main(int argc, char* argv[]) {
     ErasedUnsafeACompliant bEU{b};
 #endif // UNSAFE_MEMBER_PTR_CAST
 #ifdef UNSAFE_FUNC_PTR_CAST
-    ErasedAsmACompliant bEA{b};
+    ErasedUnsafeFuncPtrACompliant bEA{b};
 #endif // UNSAFE_FUNC_PTR_CAST
 #ifdef DYNO
     ErasedADyno bD{b};
@@ -668,7 +704,7 @@ int main(int argc, char* argv[]) {
     ErasedUnsafeACompliant bEU{b};
 #endif // UNSAFE_MEMBER_PTR_CAST
 #ifdef UNSAFE_FUNC_PTR_CAST
-    ErasedAsmACompliant bEA{b};
+    ErasedUnsafeFuncPtrACompliant bEA{b};
 #endif // UNSAFE_FUNC_PTR_CAST
 #ifdef DYNO
     ErasedADyno bD{b};
@@ -726,7 +762,7 @@ int main(int argc, char* argv[]) {
   #ifdef MANUAL_BENCH
     auto mid9Time = high_resolution_clock::now();
   #endif // MANUAL_BENCH
-    size_t res10 = runTest<ErasedAsmACompliant, 10>(res, bEA);
+    size_t res10 = runTest<ErasedUnsafeFuncPtrACompliant, 10>(res, bEA);
 #endif // UNSAFE_TEST
 #ifdef MANUAL_BENCH
     auto mid10Time = high_resolution_clock::now();
